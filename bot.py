@@ -1,13 +1,10 @@
 # ============================================================
 #   ProxyGem Telegram Bot — Single File Edition
 #   Python 3.12+ / aiogram 3.x / SQLite
-#   Читает .env через python-dotenv
+#   Без python-dotenv: свой мини-парсер .env
 #   Навигация — в ОДНОМ сообщении (edit_caption / edit_text)
 #   Консольные команды: restart | stop | start | status | help | exit
 # ============================================================
-
-from dotenv import load_dotenv
-load_dotenv()
 
 import asyncio
 import json
@@ -21,6 +18,32 @@ import threading
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+# ============================================================
+# РУЧНАЯ ЗАГРУЗКА .env (без python-dotenv)
+# ============================================================
+def _load_dotenv_manual(path: str = ".env"):
+    """Простой парсер .env — без внешних библиотек."""
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except Exception as e:
+        print(f"⚠️ Не удалось прочитать .env: {e}")
+
+_load_dotenv_manual()
+# ============================================================
 
 import aiosqlite
 from aiogram import Bot, Dispatcher, F, Router
@@ -41,6 +64,17 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import ClientSession, ClientTimeout
+
+# ============================================================
+# KEEP_ALIVE (для Render / UptimeRobot)
+# ============================================================
+try:
+    from keep_alive import keep_alive
+    _HAS_KEEP_ALIVE = True
+except ImportError:
+    _HAS_KEEP_ALIVE = False
+    def keep_alive():
+        pass
 
 # ============================================================
 # CONFIG — БЕРЁТСЯ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
@@ -72,7 +106,6 @@ GITHUB_REPO       = os.getenv("GITHUB_REPO", "X3-qW8-zR5-")
 GITHUB_FILE_PATH  = os.getenv("GITHUB_FILE_PATH", "proxygem_sub.txt")
 PREMIUM_FILE_PATH = os.getenv("PREMIUM_FILE_PATH", "premium_codes.json")
 
-# --- Доп. услуги: только Белые списки ---
 EXTRA_SERVICES = {
     "white": {"price": 59.0, "folder": "sub_white_list", "src": "white_list.txt", "name": "Белые списки"},
 }
@@ -93,18 +126,6 @@ if not BOT_TOKEN:
 
 if not ADMIN_IDS:
     print("⚠️ ADMIN_IDS не задан — админ-панель будет недоступна никому.")
-
-# ============================================================
-# KEEP_ALIVE (для Render / UptimeRobot)
-# ============================================================
-
-try:
-    from keep_alive import keep_alive
-    _HAS_KEEP_ALIVE = True
-except ImportError:
-    _HAS_KEEP_ALIVE = False
-    def keep_alive():
-        pass
 
 # ============================================================
 # ANSI COLORS + BANNER
@@ -340,8 +361,6 @@ class DB:
         async with self.c.execute("SELECT id FROM users") as cur:
             return [r["id"] for r in await cur.fetchall()]
 
-    # ---------- Подписки ----------
-
     async def create_subscription(self, uid: int, plan: str, days: int,
                                   folder: Optional[str] = None,
                                   raw_url: Optional[str] = None,
@@ -409,8 +428,6 @@ class DB:
             )
         await self.c.commit()
 
-    # ---------- Платежи ----------
-
     async def create_payment(self, uid: int, plan: str, amount: float, provider: str,
                              order_id: Optional[str] = None, bonus_used: float = 0.0) -> int:
         cur = await self.c.execute(
@@ -432,8 +449,6 @@ class DB:
             "SELECT * FROM payments WHERE status='pending' AND provider='platega'"
         ) as cur:
             return [dict(r) for r in await cur.fetchall()]
-
-    # ---------- Рефералы и бонусы ----------
 
     async def add_referral(self, ref_id: int, new_id: int) -> bool:
         try:
@@ -951,7 +966,6 @@ def random_suffix(n: int = 10) -> str:
 
 
 async def create_sub_folder_with_expire(kind: str, days: int) -> Optional[tuple]:
-    """kind: 'sub' | 'white'"""
     if kind == "sub":
         folder, src = "sub", GITHUB_FILE_PATH
     else:
@@ -983,7 +997,6 @@ async def create_sub_folder_with_expire(kind: str, days: int) -> Optional[tuple]
 
 
 async def create_sub_folder(kind: str) -> Optional[str]:
-    """Копия без expire — для доп. услуг."""
     if kind == "sub":
         folder, src = "sub", GITHUB_FILE_PATH
     else:
@@ -1003,7 +1016,6 @@ async def create_sub_folder(kind: str) -> Optional[str]:
 
 
 async def sync_sub_folders():
-    """Синхронизирует только sub_white_list/ с white_list.txt."""
     while not CONTROL["exit"]:
         try:
             await worker_post("/github/sync", {
@@ -1212,8 +1224,6 @@ def kb_back_only(lang: str) -> InlineKeyboardMarkup:
     ]])
 
 
-# ---------- Подписки пользователя ----------
-
 def kb_user_subs_list(subs: List[dict], lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     for s in subs:
@@ -1262,8 +1272,6 @@ def kb_delete_confirm(lang: str, sub_id: int) -> InlineKeyboardMarkup:
     b.adjust(1)
     return b.as_markup()
 
-
-# ---------- Админ ----------
 
 def kb_admin_manage(lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
@@ -1501,8 +1509,6 @@ async def show_main_menu(target, uid: int, edit: bool = False):
 router = Router()
 
 
-# ---------- /start ----------
-
 @router.message(CommandStart(deep_link=True))
 async def cmd_start_deeplink(msg: Message, command: CommandObject, bot: Bot):
     await handle_start(msg, bot, command.args)
@@ -1569,8 +1575,6 @@ async def cb_lang(cb: CallbackQuery):
 async def cb_back_main(cb: CallbackQuery):
     await show_main_menu(cb, cb.from_user.id)
 
-
-# ---------- Меню: покупки ----------
 
 @router.callback_query(F.data == "menu:buy")
 async def cb_buy(cb: CallbackQuery):
@@ -1740,8 +1744,6 @@ async def do_bonus_partial(msg: Message, state: FSMContext, bot: Bot):
     await msg.answer(header + "\n\n" + t(lang, "pay_created"), reply_markup=kb)
 
 
-# ---------- Доп. услуги (только Белые списки) ----------
-
 @router.callback_query(F.data.startswith("extra:"))
 async def cb_extra(cb: CallbackQuery):
     kind = cb.data.split(":")[1]
@@ -1774,8 +1776,6 @@ async def cb_extra_pay(cb: CallbackQuery):
     ])
     await show_screen(cb, t(lang, "pay_created"), kb)
 
-
-# ---------- Активация ключа ----------
 
 @router.callback_query(F.data == "key:activate")
 async def cb_key_activate(cb: CallbackQuery, state: FSMContext):
@@ -1834,8 +1834,6 @@ async def do_activate_key(msg: Message, state: FSMContext, bot: Bot):
     await msg.answer(t(lang, "key_ok", duration=duration, days=days, name=custom_name, folder=folder))
     await show_main_menu(msg, msg.from_user.id)
 
-
-# ---------- Меню: подписки ----------
 
 @router.callback_query(F.data == "menu:subs")
 async def cb_subs(cb: CallbackQuery):
@@ -1934,8 +1932,6 @@ async def cb_sub_del_yes(cb: CallbackQuery):
     await cb.answer(t(lang, "delete_done"), show_alert=False)
     await cb_subs(cb)
 
-
-# ---------- VPN ----------
 
 @router.callback_query(F.data.startswith("sub:vpn:"))
 async def cb_sub_vpn(cb: CallbackQuery):
@@ -2084,8 +2080,6 @@ async def cb_sub_dev_windows(cb: CallbackQuery):
     await show_screen(cb, text, kb, IMG_PREMIUM)
 
 
-# ---------- Рефералы / профиль ----------
-
 @router.callback_query(F.data == "menu:ref")
 async def cb_ref(cb: CallbackQuery, bot: Bot):
     lang = await db.get_language(cb.from_user.id)
@@ -2146,10 +2140,6 @@ async def cb_proxy(cb: CallbackQuery):
     text = t(lang, "proxy_title") + "\n\n" + t(lang, "proxy_hint")
     await show_screen(cb, text, kb_proxy(lang))
 
-
-# ============================================================
-# ADMIN
-# ============================================================
 
 @router.callback_query(F.data == "admin:panel")
 async def cb_admin_panel(cb: CallbackQuery):
@@ -2239,8 +2229,6 @@ async def cb_admin_conv(cb: CallbackQuery):
             f"▸ Платежей: {pays}")
     await show_screen(cb, text, kb_admin(lang))
 
-
-# ---------- ADMIN: Управление подписками ----------
 
 @router.callback_query(F.data == "admin:manage")
 async def cb_admin_manage(cb: CallbackQuery):
@@ -2430,8 +2418,6 @@ async def cb_admin_take_yes(cb: CallbackQuery, state: FSMContext, bot: Bot):
     await show_main_menu(cb.message, cb.from_user.id)
 
 
-# ---------- ADMIN: ЛС пользователю ----------
-
 @router.callback_query(F.data == "admin:dm")
 async def cb_admin_dm(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
@@ -2493,8 +2479,6 @@ async def do_admin_dm_text(msg: Message, state: FSMContext, bot: Bot):
     await state.clear()
     await show_main_menu(msg, msg.from_user.id)
 
-
-# ---------- ADMIN: глобальная рассылка ----------
 
 @router.callback_query(F.data == "admin:broadcast")
 async def cb_admin_broadcast(cb: CallbackQuery, state: FSMContext):
@@ -2601,8 +2585,6 @@ async def _do_broadcast_send(msg: Message, state: FSMContext, bot: Bot,
     await show_main_menu(msg, msg.from_user.id)
 
 
-# ---------- /cancel ----------
-
 @router.message(Command("cancel"))
 async def cmd_cancel(msg: Message, state: FSMContext):
     if await state.get_state():
@@ -2611,8 +2593,6 @@ async def cmd_cancel(msg: Message, state: FSMContext):
         await msg.answer(t(lang, "broadcast_cancel"))
         await show_main_menu(msg, msg.from_user.id)
 
-
-# ---------- FALLBACK ----------
 
 @router.message()
 async def fallback(msg: Message):
@@ -2676,7 +2656,6 @@ async def main():
     print_help()
     print(f"{C.YELLOW}[console]{C.RESET} Введите 'help' для списка команд.\n")
 
-    # Запускаем веб-сервер для Render (если он есть)
     if _HAS_KEEP_ALIVE:
         try:
             keep_alive()
