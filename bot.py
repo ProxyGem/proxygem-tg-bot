@@ -2730,8 +2730,8 @@ async def main():
 
 
 if __name__ == "__main__":
-     keep_alive()
     try:
-        asyncio.run(main())
+        keep_alive()
+        asyncio.run(main()) # Запуск бота
     except (KeyboardInterrupt, SystemExit):
         print(f"\n{C.YELLOW}[console]{C.RESET} Остановлено пользователем.")
