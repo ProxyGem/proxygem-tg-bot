@@ -2730,6 +2730,7 @@ async def main():
 
 
 if __name__ == "__main__":
+     keep_alive()
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
