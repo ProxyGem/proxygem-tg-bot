@@ -1,10 +1,20 @@
 # ============================================================
 #   ProxyGem Telegram Bot — Single File Edition
 #   Python 3.12+ / aiogram 3.x / SQLite
-#   Без python-dotenv: свой мини-парсер .env
-#   Навигация — в ОДНОМ сообщении (edit_caption / edit_text)
-#   Консольные команды: restart | stop | start | status | help | exit
 # ============================================================
+
+import subprocess
+import sys
+
+# --- АВТОУСТАНОВКА ПАКЕТОВ (обход бага Render) ---
+for _pkg in ["aiosqlite==0.22.1", "aiogram==3.31.0", "Flask==3.1.3"]:
+    try:
+        __import__(_pkg.split("==")[0].replace("-", "_"))
+    except ImportError:
+        print(f"[setup] Устанавливаю {_pkg}...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", _pkg])
+        print(f"[setup] {_pkg} установлен.")
+# -------------------------------------------------
 
 import asyncio
 import json
@@ -12,8 +22,6 @@ import logging
 import os
 import secrets
 import string
-import subprocess
-import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -23,7 +31,6 @@ from typing import Any, Dict, List, Optional
 # РУЧНАЯ ЗАГРУЗКА .env (без python-dotenv)
 # ============================================================
 def _load_dotenv_manual(path: str = ".env"):
-    """Простой парсер .env — без внешних библиотек."""
     if not os.path.exists(path):
         return
     try:
@@ -77,7 +84,7 @@ except ImportError:
         pass
 
 # ============================================================
-# CONFIG — БЕРЁТСЯ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+# CONFIG
 # ============================================================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
@@ -163,13 +170,6 @@ BANNER = r"""
     ██╔═══╝ ██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝      ██║   ██║██╔══╝  ██║╚██╔╝██║
     ██║     ██║  ██║╚██████╔╝██╔╝ ██╗   ██║       ╚██████╔╝███████╗██║ ╚═╝ ██║
     ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝        ╚═════╝ ╚══════╝╚═╝     ╚═╝
-
-    ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗ ███████╗
-    ██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗██╔════╝
-    ███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝███████╗
-    ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗╚════██║
-    ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║███████║
-    ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝╚══════╝
 """
 
 
@@ -177,10 +177,7 @@ def print_banner():
     _enable_ansi()
     print()
     print(f"{C.PINK_TEXT}{C.BOLD}{BANNER}{C.RESET}")
-    print()
-    print(f"{C.CYAN}{C.BOLD}    PROXYGEM{C.RESET}")
-    print(f"{C.CYAN}{C.BOLD}    TG BOT SERVERS{C.RESET}")
-    print()
+    print(f"{C.CYAN}{C.BOLD}    PROXYGEM TG BOT SERVERS{C.RESET}")
     header = f"{C.BG_PINK}{C.BLACK}{C.BOLD}" + " " * 64 + f"{C.RESET}"
     print(header)
     print("  ProxyGem Bot · Telegram · aiogram 3.x")
@@ -536,12 +533,7 @@ T: Dict[str, Dict[str, str]] = {
         "btn_pay":     "▦ Оплатить",
         "btn_site":    "◍ Сайт",
         "btn_support_chat": "✉ Поддержка",
-        "download_title": (
-            "⤓ Скачать ProxyGem\n\n"
-            "▸ На данный момент доступна версия только для Windows.\n"
-            "▸ Версии для других устройств появятся позже.\n\n"
-            "❯ Нажмите кнопку ниже, чтобы скачать:"
-        ),
+        "download_title": "⤓ Скачать ProxyGem\n\n▸ Доступна версия только для Windows.\n\n❯ Нажмите кнопку ниже:",
         "download_btn": "⤓ Скачать для Windows",
         "tariffs_title": "▣ Тарифы ProxyGem\n\n❯ Выберите подходящий план:",
         "buy_menu_title": "▣ Магазин ProxyGem\n\n❯ Выберите раздел:",
@@ -614,7 +606,7 @@ T: Dict[str, Dict[str, str]] = {
         "key_limit":    "✕ Достигнут лимит активаций для этого ключа.",
         "key_ok":       "✓ Ключ активирован!\n\n▸ Тариф: {duration}\n▸ Дней: {days}\n▸ Название: {name}\n▸ Папка: {folder}\n\n❯ Перейдите в «Подключиться», чтобы получить ссылку.",
         "key_ok_no_url": "✓ Ключ активирован, но ссылка не создалась. Напишите в поддержку: {support}",
-"extra_details": "◇ {name}\n\n◎ Цена: {price:.0f} ₽\n▸ Срок: навсегда",
+        "extra_details": "◇ {name}\n\n◎ Цена: {price:.0f} ₽\n▸ Срок: навсегда",
         "extra_pay_btn": "▦ Оплатить {price:.0f} ₽",
         "extra_not_found": "⚠ Услуга не найдена",
         "pay_success_key": "✓ Оплата получена!\n\n▸ Ваш ключ: `{key}`\n▸ Тариф: {duration}\n\nАктивируйте его: «Купить» → «Активировать ключ».",
@@ -2690,7 +2682,9 @@ async def main():
     asyncio.create_task(poll_payments())
     asyncio.create_task(sync_sub_folders())
 
-    threading.Thread(target=console_listener, daemon=True).start()
+    # Консоль запускается только в локальном терминале
+    if sys.stdin.isatty():
+        threading.Thread(target=console_listener, daemon=True).start()
 
     polling_task = asyncio.create_task(
         dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
@@ -2731,7 +2725,6 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        keep_alive()
-        asyncio.run(main()) # Запуск бота
+        asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print(f"\n{C.YELLOW}[console]{C.RESET} Остановлено пользователем.")
